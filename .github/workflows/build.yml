@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -32,9 +32,8 @@ jobs:
           sudo install -m755 ldid_macosx_x86_64 /usr/local/bin/ldid
           brew install 7zip gnu-sed
 
-      - name: Select Xcode 16
+      - name: Prep
         run: | 
-          sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
           mkdir upload
           sed -i '' '/func application(/a\
           Preferences.beta = true
@@ -67,13 +66,16 @@ jobs:
           size=12375230
           version=${{ github.run_number }}
           download_url=${{ env.catbox_link }}
-
-          if [ -n "$download_url" ]; then
+      
+          current_version=$(jq -r '.apps[0].version' $GITHUB_WORKSPACE/Bbuild/b.json)
+          echo "Current highest version: $current_version"
+      
+          if [ -n "$download_url" ] && [ "$version" -gt "$current_version" ]; then
             echo "Download URL for .ipa file: $download_url"
             echo "Updated at: $updated_at"
             echo "Size: $size bytes"
-            echo "Version: $version"
-
+            echo "Version: $version (higher than current $current_version)"
+      
             jq --arg version "$version" \
                --arg date "$updated_at" \
                --argjson size "$size" \
@@ -90,10 +92,10 @@ jobs:
                     downloadURL: $url
                   }] + .apps[0].versions
                 ) | .apps[0].versions |= unique_by(.version)' $GITHUB_WORKSPACE/Bbuild/b.json > $GITHUB_WORKSPACE/Bbuild/updated_b.json
-
+      
             mv $GITHUB_WORKSPACE/Bbuild/updated_b.json $GITHUB_WORKSPACE/Bbuild/b.json
           else
-            echo "missing information."
+            echo "Version $version is not greater than the current version $current_version or missing information."
             echo "Updated at: $updated_at"
             echo "Version: $version"
           fi
